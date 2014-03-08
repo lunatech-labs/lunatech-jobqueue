@@ -1,6 +1,5 @@
 package com.lunatech.jobexecutor.executor
 
-import JobQueueManager.{ JobCompleted, JobTerminated }
 import akka.actor.{ Actor, ActorRef, Cancellable, Props, actorRef2Scala }
 import com.lunatech.jobexecutor.{ Job, QueueConfig }
 import com.lunatech.queue.Serializable
@@ -52,7 +51,6 @@ class JobExecutor(queueConfig: QueueConfig, jobQueueManager: ActorRef) extends A
       }
     }
     case Terminate(jobId) => runningProcess foreach { process =>
-      println("This is taking too long. Killing the job.")
       process.destroy()
       handleJobFailure(s"Maximum execution time of ${queueConfig.executorConfig.maxExecutionTime} exceeded.")
       jobQueueManager ! JobTerminated(currentJobId.get)
