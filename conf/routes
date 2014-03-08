@@ -1,0 +1,7 @@
+GET     /queues                        @com.lunatech.jobexecutor.web.Webservice.listQueues
+GET     /queues/:queueName             @com.lunatech.jobexecutor.web.Webservice.showQueue(queueName)
+
+POST    /queues/:queueName/jobs        @com.lunatech.jobexecutor.web.Webservice.postJob(queueName)
+DELETE  /queues/:queueName/jobs/:jobId @com.lunatech.jobexecutor.web.Webservice.deleteJob(queueName, jobId)
+
+GET     /assets/*file               controllers.Assets.at(path="/public", file)
