@@ -6,7 +6,8 @@ import java.io.File
 import java.nio.file.Files
 
 case class Job(
-  id: String,
+  uid: String,
+  id: Option[String],
   createdOn: DateTime,
   command: String)
 

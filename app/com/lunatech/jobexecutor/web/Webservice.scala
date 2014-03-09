@@ -1,6 +1,6 @@
 package com.lunatech.jobexecutor.web
 
-import com.lunatech.jobexecutor.{ Job, JobQueue, QueueConfig, jobFileFilter, serializableFromJson }
+import com.lunatech.jobexecutor._
 import com.lunatech.queue.DirectoryBackedQueue
 import java.nio.file.Files
 import java.util.UUID
@@ -11,12 +11,12 @@ import play.api.mvc.{ Action, Controller }
 
 class Webservice(queueConfigs: Seq[QueueConfig]) extends Controller {
 
-  case class CreateJobData(
+  case class CreateJobData(id: Option[String],
     command: String) {
 
     def createJob: Job = {
-      val id = UUID.randomUUID().toString
-      Job.apply(id, DateTime.now, command)
+      val uid = UUID.randomUUID().toString
+      Job.apply(uid, id, DateTime.now, command)
     }
   }
 
@@ -36,6 +36,14 @@ class Webservice(queueConfigs: Seq[QueueConfig]) extends Controller {
     } getOrElse NotFound
   }
 
+  def listJobs(queueName: String) = Action {
+    queueConfigs.find(_.queueName == queueName).map { queueConfig =>
+      val queue = DetailedJobQueue.fromConfig(queueConfig)
+
+      Ok(Json.toJson(queue))
+   } getOrElse NotFound
+  }
+
   def postJob(queueName: String) = Action(parse.json) { request =>
     request.body.validate[CreateJobData].fold(
       invalid => BadRequest,
@@ -48,12 +56,12 @@ class Webservice(queueConfigs: Seq[QueueConfig]) extends Controller {
 
   }
 
-  def deleteJob(queueName: String, jobId: String) = Action { request =>
+  def deleteJob(queueName: String, jobUid: String) = Action { request =>
     // Find the filename of the job with this id
     (for {
       queuePath <- queueConfigs.find(_.queueName == queueName).map(_.queueDir)
       jobFile <- queuePath.toFile.listFiles(jobFileFilter).toList.find { file =>
-        Job.fromFile(file).id == jobId
+        Job.fromFile(file).uid == jobUid
       }
     } yield {
       val deleted = Files.deleteIfExists(jobFile.toPath)

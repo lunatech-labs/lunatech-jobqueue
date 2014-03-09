@@ -28,14 +28,14 @@ class JobExecutor(queueConfig: QueueConfig, jobQueueManager: ActorRef) extends A
 
   def receive = {
     case job: Job => {
-      currentJobId = Some(job.id)
-      Files.createDirectory(jobSpoolDir(job.id))
-      Files.write(jobSpoolFile(job.id), implicitly[Serializable[Job]].serialize(job))
+      currentJobId = Some(job.uid)
+      Files.createDirectory(jobSpoolDir(job.uid))
+      Files.write(jobSpoolFile(job.uid), implicitly[Serializable[Job]].serialize(job))
       val pb = processBuilder(job)
 
       runningProcess = Some(pb.start())
       checkSchedule = Some(context.system.scheduler.schedule(100.milliseconds, 100.milliseconds, self, CheckStatus))
-      killSchedule = Some(context.system.scheduler.scheduleOnce(queueConfig.executorConfig.maxExecutionTime, self, Terminate(job.id)))
+      killSchedule = Some(context.system.scheduler.scheduleOnce(queueConfig.executorConfig.maxExecutionTime, self, Terminate(job.uid)))
     }
     case CheckStatus => runningProcess foreach { process =>
       Exception.catching(classOf[IllegalThreadStateException]) opt process.exitValue() foreach { exitValue =>
@@ -68,8 +68,8 @@ class JobExecutor(queueConfig: QueueConfig, jobQueueManager: ActorRef) extends A
     // we could use Runtime.exec, but then redirecting output to files is awkward. We settle on executing
     // the command through a shell
     val pb = new ProcessBuilder("/bin/sh", "-c", job.command)
-    pb.redirectError(stderrSpoolFile(job.id).toFile)
-    pb.redirectOutput(stdoutSpoolFile(job.id).toFile)
+    pb.redirectError(stderrSpoolFile(job.uid).toFile)
+    pb.redirectOutput(stdoutSpoolFile(job.uid).toFile)
     pb
   }
 
