@@ -21,14 +21,14 @@ class JobExecutor(queueConfig: QueueConfig, jobQueueManager: ActorRef) extends A
 
   implicit val ec = context.dispatcher
 
-  var currentJobId: Option[String] = None
+  var currentJobUid: Option[String] = None
   var runningProcess: Option[Process] = None
   var checkSchedule: Option[Cancellable] = None
   var killSchedule: Option[Cancellable] = None
 
   def receive = {
     case job: Job => {
-      currentJobId = Some(job.uid)
+      currentJobUid = Some(job.uid)
       Files.createDirectory(jobSpoolDir(job.uid))
       Files.write(jobSpoolFile(job.uid), implicitly[Serializable[Job]].serialize(job))
       val pb = processBuilder(job)
@@ -46,21 +46,27 @@ class JobExecutor(queueConfig: QueueConfig, jobQueueManager: ActorRef) extends A
           handleJobSuccess()
         else
           handleJobFailure("Exit code " + exitValue)
-        jobQueueManager ! JobCompleted(currentJobId.get)
-        currentJobId = None
+        currentJobUid.map { id => 
+          jobQueueManager ! JobTerminated(id)
+        }
+        currentJobUid = None
       }
     }
-    case Terminate(jobId) => runningProcess foreach { process =>
+    case Terminate(jobUid) => runningProcess foreach { process =>
       process.destroy()
       handleJobFailure(s"Maximum execution time of ${queueConfig.executorConfig.maxExecutionTime} exceeded.")
-      jobQueueManager ! JobTerminated(currentJobId.get)
-      currentJobId = None
+      currentJobUid.map { id => 
+          jobQueueManager ! JobTerminated(id)
+      }
+      currentJobUid = None
     }
   }
 
   override def preRestart(reason: Throwable, message: Option[Any]) = {
     handleJobFailure(reason.getStackTraceString)
-    jobQueueManager ! JobTerminated(currentJobId.get)
+    currentJobUid.map { id => 
+        jobQueueManager ! JobTerminated(id)
+    }
   }
 
   def processBuilder(job: Job): ProcessBuilder = {
@@ -73,22 +79,22 @@ class JobExecutor(queueConfig: QueueConfig, jobQueueManager: ActorRef) extends A
     pb
   }
 
-  def jobSpoolDir(jobId: String): Path = queueConfig.spoolDir resolve jobId
-  def jobSpoolFile(jobId: String): Path = jobSpoolDir(jobId) resolve "job"
-  def stderrSpoolFile(jobId: String): Path = jobSpoolDir(jobId) resolve "stderr"
-  def stdoutSpoolFile(jobId: String): Path = jobSpoolDir(jobId) resolve "stdout"
+  def jobSpoolDir(jobUid: String): Path = queueConfig.spoolDir resolve jobUid
+  def jobSpoolFile(jobUid: String): Path = jobSpoolDir(jobUid) resolve "job"
+  def stderrSpoolFile(jobUid: String): Path = jobSpoolDir(jobUid) resolve "stderr"
+  def stdoutSpoolFile(jobUid: String): Path = jobSpoolDir(jobUid) resolve "stdout"
 
-  def jobFailedDir(jobId: String): Path = queueConfig.failedDir resolve jobId
-  def failureReasonFile(jobId: String): Path = jobFailedDir(jobId) resolve "reason"
+  def jobFailedDir(jobUid: String): Path = queueConfig.failedDir resolve jobUid
+  def failureReasonFile(jobUid: String): Path = jobFailedDir(jobUid) resolve "reason"
 
-  def jobCompletedDir(jobId: String): Path = queueConfig.completedDir resolve jobId
+  def jobCompletedDir(jobUid: String): Path = queueConfig.completedDir resolve jobUid
 
-  def handleJobFailure(reason: String) = currentJobId foreach { jobId =>
-    Files.move(jobSpoolDir(jobId), jobFailedDir(jobId))
-    Files.write(failureReasonFile(jobId), reason.getBytes(Codec.UTF8.charSet))
+  def handleJobFailure(reason: String) = currentJobUid foreach { jobUid =>
+    Files.move(jobSpoolDir(jobUid), jobFailedDir(jobUid))
+    Files.write(failureReasonFile(jobUid), reason.getBytes(Codec.UTF8.charSet))
   }
 
-  def handleJobSuccess() = currentJobId foreach { jobId =>
-    Files.move(jobSpoolDir(jobId), jobCompletedDir(jobId))
+  def handleJobSuccess() = currentJobUid foreach { jobUid =>
+    Files.move(jobSpoolDir(jobUid), jobCompletedDir(jobUid))
   }
 }

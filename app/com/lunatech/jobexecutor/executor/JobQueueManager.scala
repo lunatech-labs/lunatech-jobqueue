@@ -11,8 +11,8 @@ import scala.io.Codec
 
 object JobQueueManager {
   case object CheckJobs
-  case class JobCompleted(jobId: String)
-  case class JobTerminated(jobId: String)
+  case class JobCompleted(jobUid: String)
+  case class JobTerminated(jobUid: String)
 
   def props(queueConfig: QueueConfig): Props = Props(new JobQueueManager(queueConfig))
 }
@@ -46,11 +46,11 @@ class JobQueueManager(queueConfig: QueueConfig) extends Actor {
         self ! CheckJobs
       }
     }
-    case JobCompleted(jobId: String) => {
+    case JobCompleted(jobUid: String) => {
       busy = busy - sender
       self ! CheckJobs
     }
-    case JobTerminated(jobId: String) => {
+    case JobTerminated(jobUid: String) => {
       busy = busy - sender
       self ! CheckJobs
     }
